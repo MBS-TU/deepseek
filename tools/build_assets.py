@@ -47,6 +47,10 @@ HAND_LEFT_MOUSE = {
            (165, 470), (180, 478), (195, 478)],
     "bg": [(65, 510), (80, 520), (220, 500), (225, 450),
            (200, 440), (65, 455)],
+    # The small mouse sits under the paw.  Include that oval patch in the
+    # moving layer so the device travels with the hand; the pad itself stays
+    # fixed because this patch is only slightly larger than the mouse.
+    "extra_ellipse": (48, 470, 205, 550),
 }
 
 
@@ -104,6 +108,16 @@ def split_hand(scene: Image.Image, spec: dict) -> tuple[Image.Image, Image.Image
     full = np.zeros(arr.shape[:2], np.uint8)
     full[y0:y1, x0:x1] = hand
 
+    ellipse = spec.get("extra_ellipse")
+    extra = None
+    if ellipse:
+        ex0, ey0, ex1, ey1 = ellipse
+        cx, cy = (ex0 + ex1) / 2, (ey0 + ey1) / 2
+        rx, ry = max(1, (ex1 - ex0) / 2), max(1, (ey1 - ey0) / 2)
+        yy, xx = np.ogrid[: arr.shape[0], : arr.shape[1]]
+        extra = (((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2) <= 1.0
+        full[extra] = 1
+
     # The sticker keeps only the paw + its ink outline.
     sticker_alpha = Image.fromarray((full * 255).astype(np.uint8))
     sticker_alpha = sticker_alpha.filter(ImageFilter.GaussianBlur(0.55))
@@ -119,14 +133,24 @@ def split_hand(scene: Image.Image, spec: dict) -> tuple[Image.Image, Image.Image
         cv2.cvtColor(inpainted, cv2.COLOR_BGR2RGB),
         arr[:, :, 3],
     ]).astype(np.uint8)
-    return sticker, Image.fromarray(clean, "RGBA")
+    clean_image = Image.fromarray(clean, "RGBA")
+    if extra is not None:
+        # Inpainting a patch containing the dark mouse outline produces a dark
+        # crater.  The mouse travels with the paw, so fill that patch with the
+        # surrounding flat pad colour instead; when the mouse slides away, the
+        # exposed pad looks clean.
+        pad = Image.new("RGBA", scene.size, (238, 255, 188, 255))
+        fill_alpha = Image.fromarray((extra * 255).astype(np.uint8))
+        fill_alpha = fill_alpha.filter(ImageFilter.GaussianBlur(1.4))
+        clean_image = Image.composite(pad, clean_image, fill_alpha)
+    return sticker, clean_image
 
 
 def compose_hand(base: Image.Image, sticker: Image.Image,
-                 dx: float, dy: float) -> Image.Image:
+                 dx: float, dy: float, shadow: bool = True) -> Image.Image:
     composed = base.copy()
     distance = (dx * dx + dy * dy) ** 0.5
-    if distance > 4:
+    if shadow and distance > 4:
         # A soft contact shadow that travels with the hand makes the depth
         # separation readable even at 100x100.
         strength = min(0.42, 0.10 + distance / 190.0)
@@ -245,14 +269,14 @@ def build_state(name: str, scene: Image.Image, frames: list[dict]) -> None:
 
 
 def build_hand_state(name: str, base: Image.Image, sticker: Image.Image,
-                     offsets: list[tuple[float, float]]) -> None:
+                     offsets: list[tuple[float, float]], shadow: bool = True) -> None:
     """Save frames with a fixed keyboard/mousepad and an independent hand."""
     target = ASSETS / name
     target.mkdir(parents=True, exist_ok=True)
     for old in target.glob("*.png"):
         old.unlink()
     for i, (dx, dy) in enumerate(offsets):
-        frame = make_frame(compose_hand(base, sticker, dx, dy))
+        frame = make_frame(compose_hand(base, sticker, dx, dy, shadow=shadow))
         frame.save(target / f"{i:02d}.png", optimize=True)
     print(f"{name:5s}: {len(offsets)} frames (separated hand)")
 
@@ -338,7 +362,7 @@ def main() -> None:
     build_hand_state("mouse", mouse_base, mouse_sticker, [
         (0, 0), (24, -3), (45, 1), (55, 5),
         (35, 0), (0, -4), (-36, 1), (-52, 5),
-    ])
+    ], shadow=False)
     build_hand_state("key", key_base, key_sticker, [
         (0, 0), (-4, -16), (0, -38), (2, -62),
         (0, -36), (-2, -12), (0, 4), (0, 0),
