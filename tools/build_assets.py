@@ -43,6 +43,10 @@ HAND_RIGHT_KEY = {
            (325, 555)],
     "min_y": 435,
 }
+# Rotation pivots sit inside the cuff/elbow, so the end near the body stays
+# fixed while the forearm and paw tilt as one rigid layer.
+HAND_RIGHT_PIVOT = (447, 452)
+HAND_LEFT_PIVOT = (225, 452)
 HAND_LEFT_MOUSE = {
     "box": (60, 430, 235, 525),
     "fg": [(100, 480), (125, 485), (145, 480),
@@ -167,6 +171,23 @@ def compose_hand(base: Image.Image, sticker: Image.Image,
     return composed
 
 
+def compose_hand_tilt(base: Image.Image, sticker: Image.Image,
+                      pivot: tuple[int, int], angle: float) -> Image.Image:
+    """Tilt the hand layer around its elbow; the pivot itself never moves."""
+    if abs(angle) < 0.01:
+        layer = sticker
+    else:
+        layer = sticker.rotate(
+            angle,
+            resample=Image.Resampling.BICUBIC,
+            center=pivot,
+            expand=False,
+        )
+    composed = base.copy()
+    composed.alpha_composite(layer)
+    return composed
+
+
 def remove_background(image: Image.Image) -> Image.Image:
     """Remove the white sheet connected to the image border.
 
@@ -283,6 +304,19 @@ def build_hand_state(name: str, base: Image.Image, sticker: Image.Image,
     print(f"{name:5s}: {len(offsets)} frames (separated hand)")
 
 
+def build_tilt_state(name: str, base: Image.Image, sticker: Image.Image,
+                     pivot: tuple[int, int], angles: list[float]) -> None:
+    """Save frames where the paw/forearm only tilts around its elbow."""
+    target = ASSETS / name
+    target.mkdir(parents=True, exist_ok=True)
+    for old in target.glob("*.png"):
+        old.unlink()
+    for i, angle in enumerate(angles):
+        frame = make_frame(compose_hand_tilt(base, sticker, pivot, angle))
+        frame.save(target / f"{i:02d}.png", optimize=True)
+    print(f"{name:5s}: {len(angles)} frames (tilted hand)")
+
+
 def build_icon(pose1: Image.Image) -> None:
     # Crop the face from the clean pose and put it on a sky-blue rounded tile.
     # Values are in the 2016x2048 source coordinate system.
@@ -360,15 +394,12 @@ def main() -> None:
         build_state(name, state_scene, params)
 
     # The keyboard and mousepad stay byte-for-byte identical across these
-    # frames; only the cut-out paw moves.
-    build_hand_state("mouse", mouse_base, mouse_sticker, [
-        (0, 0), (8, -1), (15, 1), (20, 2),
-        (13, 0), (0, -1), (-13, 0), (-20, 2),
-    ], shadow=False)
-    build_hand_state("key", key_base, key_sticker, [
-        (0, 0), (-1, -6), (0, -13), (1, -20),
-        (0, -12), (-1, -5), (0, 1), (0, 0),
-    ])
+    # frames.  The hand layer is not translated: it pivots a few degrees around
+    # the cuff/elbow, so its root stays attached to the upper arm.
+    build_tilt_state("mouse", mouse_base, mouse_sticker, HAND_LEFT_PIVOT,
+                     [0, 2, 4, 7, 4, 2, 0, 0])
+    build_tilt_state("key", key_base, key_sticker, HAND_RIGHT_PIVOT,
+                     [0, -2, -4, -7, -4, -2, 0, 0])
 
     counts = {name: len(params) for name, (_, params) in specs.items()}
     counts["mouse"] = 8
