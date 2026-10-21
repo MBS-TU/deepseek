@@ -32,53 +32,87 @@ SHADOW_OFFSET = (0, 12)
 
 SOURCE_FILE = DESIGN / "feiyu.png"
 
-# Hand centres in the 640 px-wide scene, measured from the skin-colour masks.
-HAND_RIGHT_KEY = {"cx": 443, "cy": 510}
-HAND_LEFT_MOUSE = {"cx": 216, "cy": 464}
+# Hand masks are seeded on the actual pale paws (not the warm skin threshold,
+# which finds only the forearms in this illustration).
+HAND_RIGHT_KEY = {
+    "box": (300, 470, 470, 600),
+    "fg": [(355, 535), (380, 540), (400, 535), (415, 520), (425, 505)],
+    "bg": [(310, 585), (330, 585), (350, 590), (455, 585),
+           (450, 555), (465, 530), (310, 490), (455, 500), (325, 555)],
+    "min_y": 500,
+}
+HAND_LEFT_MOUSE = {
+    "box": (60, 430, 235, 525),
+    "fg": [(100, 480), (125, 485), (145, 480),
+           (165, 470), (180, 478), (195, 478)],
+    "bg": [(65, 510), (80, 520), (220, 500), (225, 450),
+           (200, 440), (65, 455)],
+}
 
 
-def split_hand(scene: Image.Image, hand: dict) -> tuple[Image.Image, Image.Image]:
+def split_hand(scene: Image.Image, spec: dict) -> tuple[Image.Image, Image.Image]:
     """Cut the active hand out and reconstruct the surface underneath.
 
-    Returns (hand_sticker, clean_background).  The keyboard/mousepad pixels stay
-    fixed in ``clean_background``; only the sticker animates.
+    The pale paws are segmented with GrabCut inside a hand-specific box.  A
+    simple warm-skin threshold can only find the character's forearms, which is
+    why the paws used to remain painted on the desk.  Returns
+    ``(hand_sticker, clean_background)``; the keyboard/mousepad stays fixed in
+    the background and only the sticker moves.
     """
     arr = np.asarray(scene)
-    rgb = arr[:, :, :3].astype(np.int16)
-    alpha = arr[:, :, 3]
-    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+    x0, y0, x1, y1 = spec["box"]
+    roi_bgr = cv2.cvtColor(arr[y0:y1, x0:x1, :3], cv2.COLOR_RGB2BGR)
+    h, w = roi_bgr.shape[:2]
 
-    skin = (
-        (alpha > 0)
-        & (r > 215) & (g > 185) & (b > 165)
-        & ((r - b) > 12) & ((r - g) > 4) & ((g - b) > 3)
-    )
-    skin = ndimage.binary_opening(skin, iterations=2)
-    labels, _ = ndimage.label(skin)
-    cx, cy = hand["cx"], hand["cy"]
-    component_id = labels[cy, cx]
-    if component_id == 0:
-        ys, xs = np.where(skin)
-        index = int(np.argmin((xs - cx) ** 2 + (ys - cy) ** 2))
-        component_id = labels[ys[index], xs[index]]
-    hand_pixels = labels == component_id
+    mask = np.full((h, w), cv2.GC_PR_BGD, np.uint8)
+    mask[:5, :] = cv2.GC_BGD
+    mask[-5:, :] = cv2.GC_BGD
+    mask[:, :5] = cv2.GC_BGD
+    mask[:, -5:] = cv2.GC_BGD
+    for sx, sy in spec["fg"]:
+        cv2.circle(mask, (sx - x0, sy - y0), 9, cv2.GC_FGD, -1)
+    for sx, sy in spec["bg"]:
+        cv2.circle(mask, (sx - x0, sy - y0), 9, cv2.GC_BGD, -1)
+    bgd = np.zeros((1, 65), np.float64)
+    fgd = np.zeros((1, 65), np.float64)
+    cv2.grabCut(roi_bgr, mask, None, bgd, fgd, 10, cv2.GC_INIT_WITH_MASK)
 
-    nearby = ndimage.binary_dilation(hand_pixels, iterations=12)
-    dark_outline = (alpha > 0) & (np.max(arr[:, :, :3], axis=2) < 130)
-    mask = hand_pixels | (nearby & dark_outline)
-    mask = ndimage.binary_closing(mask, iterations=2)
-    mask = ndimage.binary_fill_holes(mask)
-    mask = ndimage.binary_dilation(mask, iterations=1)
+    hand = ((mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD)).astype(np.uint8)
+    roi_rgb = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2RGB).astype(np.int16)
+    r, g, b = roi_rgb[:, :, 0], roi_rgb[:, :, 1], roi_rgb[:, :, 2]
+    # Do not let the blue sleeve or the green pad/keys travel with the paw.
+    blue = (b > r + 16) & (b > g + 6)
+    green = (g > r + 4) & (g > b + 6) & (g > 80)
+    hand[blue | green] = 0
 
-    # The sticker keeps only the hand + its ink outline.
-    sticker_alpha = Image.fromarray((mask.astype(np.uint8) * 255))
-    sticker_alpha = sticker_alpha.filter(ImageFilter.GaussianBlur(0.4))
+    min_y = spec.get("min_y")
+    if min_y is not None and min_y > y0:
+        hand[: min_y - y0, :] = 0
+
+    labels, _ = ndimage.label(hand, structure=np.ones((3, 3)))
+    keep = np.zeros_like(hand)
+    for sx, sy in spec["fg"]:
+        lid = labels[sy - y0, sx - x0]
+        if lid:
+            keep[labels == lid] = 1
+    if not keep.any():
+        keep = (labels == np.argmax(np.bincount(labels.ravel())[1:]) + 1).astype(np.uint8)
+    hand = keep
+    hand = ndimage.binary_closing(hand, iterations=2)
+    hand = ndimage.binary_dilation(hand, iterations=1).astype(np.uint8)
+
+    full = np.zeros(arr.shape[:2], np.uint8)
+    full[y0:y1, x0:x1] = hand
+
+    # The sticker keeps only the paw + its ink outline.
+    sticker_alpha = Image.fromarray((full * 255).astype(np.uint8))
+    sticker_alpha = sticker_alpha.filter(ImageFilter.GaussianBlur(0.55))
     sticker = scene.copy()
     sticker.putalpha(sticker_alpha)
 
-    # Remove the hand and its contact shadow from the background, then inpaint
-    # the keyboard/mousepad back into place.  This layer never moves.
-    hole = ndimage.binary_dilation(mask, iterations=10).astype(np.uint8) * 255
+    # Remove the paw and its contact shadow from the desk, then inpaint the
+    # keyboard/mousepad back into place.  This layer never moves.
+    hole = ndimage.binary_dilation(full, iterations=12).astype(np.uint8) * 255
     bgr = cv2.cvtColor(arr[:, :, :3], cv2.COLOR_RGB2BGR)
     inpainted = cv2.inpaint(bgr, hole, 9, cv2.INPAINT_TELEA)
     clean = np.dstack([
@@ -91,6 +125,16 @@ def split_hand(scene: Image.Image, hand: dict) -> tuple[Image.Image, Image.Image
 def compose_hand(base: Image.Image, sticker: Image.Image,
                  dx: float, dy: float) -> Image.Image:
     composed = base.copy()
+    distance = (dx * dx + dy * dy) ** 0.5
+    if distance > 4:
+        # A soft contact shadow that travels with the hand makes the depth
+        # separation readable even at 100x100.
+        strength = min(0.42, 0.10 + distance / 190.0)
+        shadow_alpha = sticker.getchannel("A").filter(ImageFilter.GaussianBlur(3))
+        shadow_alpha = shadow_alpha.point(lambda v: int(v * strength))
+        shadow = Image.new("RGBA", base.size, (15, 32, 45, 255))
+        shadow.putalpha(shadow_alpha)
+        composed.alpha_composite(shadow, (round(dx + 4), round(dy + 7)))
     layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
     layer.alpha_composite(sticker, (round(dx), round(dy)))
     composed.alpha_composite(layer)
@@ -280,31 +324,24 @@ def main() -> None:
     mouse_sticker, mouse_base = split_hand(scene, HAND_LEFT_MOUSE)
 
     specs = {
-        "idle": (scene, [
-            {"dy": -1}, {"dy": -2, "sy": 1.002}, {"dy": -3, "sy": 1.003},
-            {"dy": -2, "sy": 1.002}, {"dy": -1}, {"dy": 0},
-            {"dy": 1, "sy": 0.999}, {"dy": 0, "sy": 0.999},
-        ]),
-        "drag": (scene, [
-            {"dx": 0, "dy": -4, "angle": -2.4},
-            {"dx": 1, "dy": -5, "angle": -1.1},
-            {"dx": 0, "dy": -5, "angle": 1.1},
-            {"dx": -1, "dy": -4, "angle": 2.4},
-        ]),
+        # The desk, keyboard and mousepad never move.  Idle is a single static
+        # plate; all visible life comes from the independently layered hands.
+        "idle": (scene, [{}]),
+        "drag": (scene, [{}]),
     }
 
     for name, (state_scene, params) in specs.items():
         build_state(name, state_scene, params)
 
     # The keyboard and mousepad stay byte-for-byte identical across these
-    # frames; only the cut-out hand moves.
+    # frames; only the cut-out paw moves.
     build_hand_state("mouse", mouse_base, mouse_sticker, [
-        (0, 0), (20, -4), (32, 1), (20, 6),
-        (0, 1), (-20, -6), (-32, 0), (-20, 5),
+        (0, 0), (24, -3), (45, 1), (55, 5),
+        (35, 0), (0, -4), (-36, 1), (-52, 5),
     ])
     build_hand_state("key", key_base, key_sticker, [
-        (0, 0), (-3, -14), (0, -30), (2, -40),
-        (0, 7), (0, 0), (-2, -9), (0, 0),
+        (0, 0), (-4, -16), (0, -38), (2, -62),
+        (0, -36), (-2, -12), (0, 4), (0, 0),
     ])
 
     counts = {name: len(params) for name, (_, params) in specs.items()}
