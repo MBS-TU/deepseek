@@ -35,11 +35,13 @@ SOURCE_FILE = DESIGN / "feiyu.png"
 # Hand masks are seeded on the actual pale paws (not the warm skin threshold,
 # which finds only the forearms in this illustration).
 HAND_RIGHT_KEY = {
-    "box": (300, 470, 470, 600),
-    "fg": [(355, 535), (380, 540), (400, 535), (415, 520), (425, 505)],
+    "box": (290, 420, 475, 600),
+    "fg": [(355, 535), (380, 540), (400, 535), (415, 520),
+           (425, 505), (438, 480), (446, 465), (450, 452)],
     "bg": [(310, 585), (330, 585), (350, 590), (455, 585),
-           (450, 555), (465, 530), (310, 490), (455, 500), (325, 555)],
-    "min_y": 500,
+           (465, 555), (465, 430), (300, 445), (300, 500),
+           (325, 555)],
+    "min_y": 435,
 }
 HAND_LEFT_MOUSE = {
     "box": (60, 430, 235, 525),
@@ -360,12 +362,12 @@ def main() -> None:
     # The keyboard and mousepad stay byte-for-byte identical across these
     # frames; only the cut-out paw moves.
     build_hand_state("mouse", mouse_base, mouse_sticker, [
-        (0, 0), (24, -3), (45, 1), (55, 5),
-        (35, 0), (0, -4), (-36, 1), (-52, 5),
+        (0, 0), (8, -1), (15, 1), (20, 2),
+        (13, 0), (0, -1), (-13, 0), (-20, 2),
     ], shadow=False)
     build_hand_state("key", key_base, key_sticker, [
-        (0, 0), (-4, -16), (0, -38), (2, -62),
-        (0, -36), (-2, -12), (0, 4), (0, 0),
+        (0, 0), (-1, -6), (0, -13), (1, -20),
+        (0, -12), (-1, -5), (0, 1), (0, 0),
     ])
 
     counts = {name: len(params) for name, (_, params) in specs.items()}
