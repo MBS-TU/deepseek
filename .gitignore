@@ -3,6 +3,16 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Local-only app configuration (contains the DeepSeek API Key after setup)
+config.json
+
+# IDE settings
+.idea/
+
+# PyInstaller release output (large generated binaries)
+release/
+*.zip
+
 # C extensions
 *.so
 

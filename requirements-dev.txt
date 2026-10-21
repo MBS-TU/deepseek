@@ -1,0 +1,7 @@
+# 开发/打包与素材重建依赖
+-r requirements.txt
+pyinstaller==6.22.3
+Pillow
+numpy
+scipy
+opencv-python-headless

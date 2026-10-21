@@ -1,0 +1,334 @@
+"""Build the animated pet frames and application icon from the two pose references.
+
+Run inside the project venv (Pillow, numpy, scipy, OpenCV):
+
+    venv\\Scripts\\python.exe tools\\build_assets.py
+
+The two reference images are never modified.  The cut-out frames are written to
+assets/idle, assets/mouse, assets/key and assets/drag.  For the active hand
+animations, the hand is cut out as its own layer and the keyboard/mousepad stays
+fixed underneath it.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import cv2
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter
+from scipy import ndimage
+
+ROOT = Path(__file__).resolve().parent.parent
+DESIGN = ROOT / "design"
+ASSETS = ROOT / "assets"
+
+FRAME_W, FRAME_H = 700, 720
+SCENE_W = 640
+BASE_TOP = 36
+SHADOW_ALPHA = 52
+SHADOW_BLUR = 14
+SHADOW_OFFSET = (0, 12)
+
+SOURCE_FILES = {
+    "pose1": DESIGN / "laozhou_pose1.png",
+    "pose2": DESIGN / "laozhou_pose2.png",
+}
+
+# Hand centres in the 640 px-wide scene, measured from the skin-colour masks.
+HAND_RIGHT_KEY = {"cx": 411, "cy": 510}
+HAND_LEFT_MOUSE = {"cx": 248, "cy": 530}
+
+
+def split_hand(scene: Image.Image, hand: dict) -> tuple[Image.Image, Image.Image]:
+    """Cut the active hand out and reconstruct the surface underneath.
+
+    Returns (hand_sticker, clean_background).  The keyboard/mousepad pixels stay
+    fixed in ``clean_background``; only the sticker animates.
+    """
+    arr = np.asarray(scene)
+    rgb = arr[:, :, :3].astype(np.int16)
+    alpha = arr[:, :, 3]
+    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+
+    skin = (
+        (alpha > 0)
+        & (r > 215) & (g > 185) & (b > 165)
+        & ((r - b) > 12) & ((r - g) > 4) & ((g - b) > 3)
+    )
+    skin = ndimage.binary_opening(skin, iterations=2)
+    labels, _ = ndimage.label(skin)
+    cx, cy = hand["cx"], hand["cy"]
+    component_id = labels[cy, cx]
+    if component_id == 0:
+        ys, xs = np.where(skin)
+        index = int(np.argmin((xs - cx) ** 2 + (ys - cy) ** 2))
+        component_id = labels[ys[index], xs[index]]
+    hand_pixels = labels == component_id
+
+    nearby = ndimage.binary_dilation(hand_pixels, iterations=12)
+    dark_outline = (alpha > 0) & (np.max(arr[:, :, :3], axis=2) < 130)
+    mask = hand_pixels | (nearby & dark_outline)
+    mask = ndimage.binary_closing(mask, iterations=2)
+    mask = ndimage.binary_fill_holes(mask)
+    mask = ndimage.binary_dilation(mask, iterations=1)
+
+    # The sticker keeps only the hand + its ink outline.
+    sticker_alpha = Image.fromarray((mask.astype(np.uint8) * 255))
+    sticker_alpha = sticker_alpha.filter(ImageFilter.GaussianBlur(0.4))
+    sticker = scene.copy()
+    sticker.putalpha(sticker_alpha)
+
+    # Remove the hand and its contact shadow from the background, then inpaint
+    # the keyboard/mousepad back into place.  This layer never moves.
+    hole = ndimage.binary_dilation(mask, iterations=10).astype(np.uint8) * 255
+    bgr = cv2.cvtColor(arr[:, :, :3], cv2.COLOR_RGB2BGR)
+    inpainted = cv2.inpaint(bgr, hole, 9, cv2.INPAINT_TELEA)
+    clean = np.dstack([
+        cv2.cvtColor(inpainted, cv2.COLOR_BGR2RGB),
+        arr[:, :, 3],
+    ]).astype(np.uint8)
+    return sticker, Image.fromarray(clean, "RGBA")
+
+
+def compose_hand(base: Image.Image, sticker: Image.Image,
+                 dx: float, dy: float) -> Image.Image:
+    composed = base.copy()
+    layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    layer.alpha_composite(sticker, (round(dx), round(dy)))
+    composed.alpha_composite(layer)
+    return composed
+
+
+def remove_background(image: Image.Image) -> Image.Image:
+    """Remove the white sheet connected to the image border.
+
+    White parts enclosed by the green desk border (desk surface, keys) are kept.
+    """
+    image = image.convert("RGBA")
+    rgb = np.asarray(image)[:, :, :3].astype(np.int16)
+    high = rgb.min(axis=2)
+    spread = rgb.max(axis=2) - rgb.min(axis=2)
+    candidate = (high >= 238) & (spread <= 14)
+
+    labels, count = ndimage.label(candidate)
+    border_labels = np.unique(
+        np.concatenate((labels[0, :], labels[-1, :], labels[:, 0], labels[:, -1]))
+    )
+    border_labels = border_labels[border_labels > 0]
+    background = np.isin(labels, border_labels)
+
+    out = np.array(image)
+    out[background, 3] = 0
+
+    # A 0.6 px alpha feather hides the hardest stair steps without whitening
+    # the hand-drawn outline.
+    alpha = Image.fromarray(out[:, :, 3]).filter(ImageFilter.GaussianBlur(0.6))
+    out[:, :, 3] = np.asarray(alpha)
+    return Image.fromarray(out, "RGBA")
+
+
+def crop_scene(image: Image.Image) -> Image.Image:
+    bbox = image.getchannel("A").getbbox()
+    if bbox is None:
+        raise RuntimeError("no opaque pixels after background removal")
+    left, top, right, bottom = bbox
+
+    # The lower desk edge intentionally reaches the left/right borders of the
+    # source.  Keep the full drawing width and just trim dead space at the top.
+    left = 0
+    right = image.width
+    top = max(0, top - 14)
+    bottom = image.height
+    return image.crop((left, top, right, bottom))
+
+
+def load_scene(path: Path) -> Image.Image:
+    raw = Image.open(path)
+    if raw.mode == "P":
+        raw = raw.convert("RGBA")
+    else:
+        raw = raw.convert("RGBA")
+    cut = remove_background(raw)
+    scene = crop_scene(cut)
+    ratio = scene.height / scene.width
+    return scene.resize((SCENE_W, round(SCENE_W * ratio)), Image.Resampling.LANCZOS)
+
+
+def fit_center(image: Image.Image, angle: float = 0.0,
+               sx: float = 1.0, sy: float = 1.0) -> Image.Image:
+    w = max(1, round(image.width * sx))
+    h = max(1, round(image.height * sy))
+    layer = image.resize((w, h), Image.Resampling.LANCZOS)
+    if abs(angle) > 0.01:
+        layer = layer.rotate(angle, resample=Image.Resampling.BICUBIC, expand=True)
+    return layer
+
+
+def make_frame(scene: Image.Image, *, dx: float = 0.0, dy: float = 0.0,
+               angle: float = 0.0, sx: float = 1.0, sy: float = 1.0) -> Image.Image:
+    layer = fit_center(scene, angle, sx, sy)
+    canvas = Image.new("RGBA", (FRAME_W, FRAME_H), (0, 0, 0, 0))
+
+    x = round((FRAME_W - layer.width) / 2 + dx)
+    y = round(BASE_TOP + (scene.height - layer.height) / 2 + dy)
+
+    # Soft grounded shadow.  It is made from the transformed alpha so it follows
+    # the pose during the little hops.
+    alpha = layer.getchannel("A")
+    shadow = Image.new("RGBA", (FRAME_W, FRAME_H), (0, 0, 0, 0))
+    shadow.putalpha(
+        alpha.transform(
+            (FRAME_W, FRAME_H),
+            Image.Transform.AFFINE,
+            (1, 0, -x, 0, 1, -y),
+            resample=Image.Resampling.NEAREST,
+        )
+    )
+    shadow = shadow.filter(ImageFilter.GaussianBlur(SHADOW_BLUR))
+    shadow.putalpha(shadow.getchannel("A").point(lambda v: int(v * SHADOW_ALPHA / 255)))
+    canvas.alpha_composite(shadow, (SHADOW_OFFSET[0], SHADOW_OFFSET[1]))
+    canvas.alpha_composite(layer, (x, y))
+    return canvas
+
+
+def build_state(name: str, scene: Image.Image, frames: list[dict]) -> None:
+    target = ASSETS / name
+    target.mkdir(parents=True, exist_ok=True)
+    for old in target.glob("*.png"):
+        old.unlink()
+    for i, params in enumerate(frames):
+        frame = make_frame(scene, **params)
+        frame.save(target / f"{i:02d}.png", optimize=True)
+    print(f"{name:5s}: {len(frames)} frames")
+
+
+def build_hand_state(name: str, base: Image.Image, sticker: Image.Image,
+                     offsets: list[tuple[float, float]]) -> None:
+    """Save frames with a fixed keyboard/mousepad and an independent hand."""
+    target = ASSETS / name
+    target.mkdir(parents=True, exist_ok=True)
+    for old in target.glob("*.png"):
+        old.unlink()
+    for i, (dx, dy) in enumerate(offsets):
+        frame = make_frame(compose_hand(base, sticker, dx, dy))
+        frame.save(target / f"{i:02d}.png", optimize=True)
+    print(f"{name:5s}: {len(offsets)} frames (separated hand)")
+
+
+def build_icon(pose1: Image.Image) -> None:
+    # Crop the face from the clean pose and put it on a mint-green rounded tile.
+    # Values are in the 2016x2048 source coordinate system.
+    head = pose1.crop((330, 150, 1730, 1550)).resize((512, 512), Image.Resampling.LANCZOS)
+    tile = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+    d = ImageDraw.Draw(tile)
+    d.rounded_rectangle((8, 8, 503, 503), radius=112, fill=(230, 247, 209, 255),
+                        outline=(47, 107, 79, 255), width=18)
+    # A tiny circle highlight in the top-right.
+    d.ellipse((390, 40, 448, 98), fill=(255, 255, 255, 150))
+    tile.alpha_composite(head, (0, 0))
+
+    mask = Image.new("L", (512, 512), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((18, 18, 493, 493), radius=102, fill=255)
+    tile.putalpha(Image.composite(tile.getchannel("A"), Image.new("L", (512, 512), 0), mask))
+
+    tile.resize((256, 256), Image.Resampling.LANCZOS).save(ASSETS / "icon.png")
+    sizes = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+    tile.resize((256, 256), Image.Resampling.LANCZOS).save(
+        ASSETS / "icon.ico", format="ICO", sizes=sizes
+    )
+    print("icon  : icon.ico / icon.png")
+
+
+def make_preview(state_frames: dict[str, list[Image.Image]]) -> None:
+    cols = 4
+    cell_w, cell_h = 245, 252
+    rows = len(state_frames)
+    sheet = Image.new("RGB", (cols * cell_w, rows * (cell_h + 26) + 8), (246, 244, 236))
+    checker = Image.new("RGBA", (cell_w, cell_h), (255, 255, 255, 255))
+    checker_draw = ImageDraw.Draw(checker)
+    tile = 22
+    for yy in range(0, cell_h, tile):
+        for xx in range(0, cell_w, tile):
+            if (xx // tile + yy // tile) % 2:
+                checker_draw.rectangle((xx, yy, xx + tile - 1, yy + tile - 1),
+                                       fill=(231, 231, 231, 255))
+    sheet_draw = ImageDraw.Draw(sheet)
+    for row, (name, frames) in enumerate(state_frames.items()):
+        top = row * (cell_h + 26) + 8
+        sheet_draw.rectangle((0, top, cols * cell_w, top + 22), fill=(33, 69, 54))
+        sheet_draw.text((8, top + 4), name.upper(), fill=(238, 248, 232))
+        picks = np.linspace(0, len(frames) - 1, cols).round().astype(int)
+        for col, idx in enumerate(picks):
+            bg = checker.copy()
+            frame = frames[int(idx)].copy()
+            frame.thumbnail((cell_w - 12, cell_h - 12), Image.Resampling.LANCZOS)
+            bg.alpha_composite(frame, ((cell_w - frame.width) // 2,
+                                       (cell_h - frame.height) // 2))
+            sheet.paste(bg.convert("RGB"), (col * cell_w, top + 22))
+    out = DESIGN / "animation_preview.png"
+    sheet.save(out)
+    print("preview:", out)
+
+
+def main() -> None:
+    if not SOURCE_FILES["pose1"].exists() or not SOURCE_FILES["pose2"].exists():
+        raise SystemExit("design/laozhou_pose1.png and pose2.png are required")
+
+    raw_pose1 = Image.open(SOURCE_FILES["pose1"]).convert("RGBA")
+    pose1_clean = remove_background(raw_pose1)
+
+    scene1 = load_scene(SOURCE_FILES["pose1"])
+    scene2 = load_scene(SOURCE_FILES["pose2"])
+    key_sticker, key_base = split_hand(scene1, HAND_RIGHT_KEY)
+    mouse_sticker, mouse_base = split_hand(scene2, HAND_LEFT_MOUSE)
+
+    specs = {
+        "idle": (scene1, [
+            {"dy": -1}, {"dy": -2, "sy": 1.002}, {"dy": -3, "sy": 1.003},
+            {"dy": -2, "sy": 1.002}, {"dy": -1}, {"dy": 0},
+            {"dy": 1, "sy": 0.999}, {"dy": 0, "sy": 0.999},
+        ]),
+        "drag": (scene2, [
+            {"dx": 0, "dy": -6, "angle": -3.2},
+            {"dx": 2, "dy": -8, "angle": -1.4},
+            {"dx": 0, "dy": -8, "angle": 1.4},
+            {"dx": -2, "dy": -6, "angle": 3.2},
+        ]),
+    }
+
+    for name, (scene, params) in specs.items():
+        build_state(name, scene, params)
+
+    # The keyboard stays byte-for-byte identical across these frames; only the
+    # cut-out hand is moved.  The mousepad is treated the same way.
+    build_hand_state("mouse", mouse_base, mouse_sticker, [
+        (0, 0), (24, -5), (40, 2), (24, 8),
+        (0, 1), (-24, -7), (-40, 0), (-24, 6),
+    ])
+    build_hand_state("key", key_base, key_sticker, [
+        (0, 0), (-4, -16), (0, -34), (2, -44),
+        (0, 8), (0, 0), (-2, -10), (0, 0),
+    ])
+
+    counts = {name: len(params) for name, (_, params) in specs.items()}
+    counts["mouse"] = 8
+    counts["key"] = 8
+    all_frames: dict[str, list[Image.Image]] = {}
+    for name, count in counts.items():
+        all_frames[name] = [
+            Image.open(ASSETS / name / f"{i:02d}.png").convert("RGBA")
+            for i in range(count)
+        ]
+
+    build_icon(pose1_clean)
+
+    sfx = ASSETS / "sfx" / "click5.wav"
+    if not sfx.exists():
+        raise SystemExit("assets/sfx/click5.wav is missing")
+
+    make_preview(all_frames)
+
+
+if __name__ == "__main__":
+    main()
