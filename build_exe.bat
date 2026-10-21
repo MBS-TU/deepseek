@@ -6,7 +6,7 @@ set "PY=venv\Scripts\python.exe"
 if not exist "%PY%" set "PY=python"
 
 "%PY%" -m PyInstaller --noconfirm --clean --onefile --windowed ^
-  --name LaozhouPet ^
+  --name FeiyuPet ^
   --icon assets\icon.ico ^
   --version-file version_info.txt ^
   --add-data "assets;assets" ^
@@ -24,5 +24,5 @@ if errorlevel 1 (
 )
 
 echo.
-echo Build complete: dist\LaozhouPet.exe
+echo Build complete: dist\FeiyuPet.exe
 pause

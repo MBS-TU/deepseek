@@ -65,7 +65,7 @@ class Animator(QObject):
         font.setPointSize(64)
         font.setBold(True)
         painter.setFont(font)
-        painter.drawText(QRectF(110, 140, 480, 440), Qt.AlignCenter, "325")
+        painter.drawText(QRectF(110, 140, 480, 440), Qt.AlignCenter, "deep")
         painter.end()
         return pix
 

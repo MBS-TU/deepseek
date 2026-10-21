@@ -1,10 +1,10 @@
-"""Build the animated pet frames and application icon from the two pose references.
+"""Build the animated pet frames and application icon from the Feiyu reference.
 
 Run inside the project venv (Pillow, numpy, scipy, OpenCV):
 
     venv\\Scripts\\python.exe tools\\build_assets.py
 
-The two reference images are never modified.  The cut-out frames are written to
+The reference image is never modified.  The cut-out frames are written to
 assets/idle, assets/mouse, assets/key and assets/drag.  For the active hand
 animations, the hand is cut out as its own layer and the keyboard/mousepad stays
 fixed underneath it.
@@ -30,14 +30,11 @@ SHADOW_ALPHA = 52
 SHADOW_BLUR = 14
 SHADOW_OFFSET = (0, 12)
 
-SOURCE_FILES = {
-    "pose1": DESIGN / "laozhou_pose1.png",
-    "pose2": DESIGN / "laozhou_pose2.png",
-}
+SOURCE_FILE = DESIGN / "feiyu.png"
 
 # Hand centres in the 640 px-wide scene, measured from the skin-colour masks.
-HAND_RIGHT_KEY = {"cx": 411, "cy": 510}
-HAND_LEFT_MOUSE = {"cx": 248, "cy": 530}
+HAND_RIGHT_KEY = {"cx": 443, "cy": 510}
+HAND_LEFT_MOUSE = {"cx": 216, "cy": 464}
 
 
 def split_hand(scene: Image.Image, hand: dict) -> tuple[Image.Image, Image.Image]:
@@ -217,13 +214,13 @@ def build_hand_state(name: str, base: Image.Image, sticker: Image.Image,
 
 
 def build_icon(pose1: Image.Image) -> None:
-    # Crop the face from the clean pose and put it on a mint-green rounded tile.
+    # Crop the face from the clean pose and put it on a sky-blue rounded tile.
     # Values are in the 2016x2048 source coordinate system.
-    head = pose1.crop((330, 150, 1730, 1550)).resize((512, 512), Image.Resampling.LANCZOS)
+    head = pose1.crop((260, 90, 1810, 1640)).resize((512, 512), Image.Resampling.LANCZOS)
     tile = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
     d = ImageDraw.Draw(tile)
-    d.rounded_rectangle((8, 8, 503, 503), radius=112, fill=(230, 247, 209, 255),
-                        outline=(47, 107, 79, 255), width=18)
+    d.rounded_rectangle((8, 8, 503, 503), radius=112, fill=(230, 244, 255, 255),
+                        outline=(47, 112, 166, 255), width=18)
     # A tiny circle highlight in the top-right.
     d.ellipse((390, 40, 448, 98), fill=(255, 255, 255, 150))
     tile.alpha_composite(head, (0, 0))
@@ -244,7 +241,7 @@ def make_preview(state_frames: dict[str, list[Image.Image]]) -> None:
     cols = 4
     cell_w, cell_h = 245, 252
     rows = len(state_frames)
-    sheet = Image.new("RGB", (cols * cell_w, rows * (cell_h + 26) + 8), (246, 244, 236))
+    sheet = Image.new("RGB", (cols * cell_w, rows * (cell_h + 26) + 8), (240, 247, 253))
     checker = Image.new("RGBA", (cell_w, cell_h), (255, 255, 255, 255))
     checker_draw = ImageDraw.Draw(checker)
     tile = 22
@@ -252,12 +249,12 @@ def make_preview(state_frames: dict[str, list[Image.Image]]) -> None:
         for xx in range(0, cell_w, tile):
             if (xx // tile + yy // tile) % 2:
                 checker_draw.rectangle((xx, yy, xx + tile - 1, yy + tile - 1),
-                                       fill=(231, 231, 231, 255))
+                                       fill=(231, 238, 244, 255))
     sheet_draw = ImageDraw.Draw(sheet)
     for row, (name, frames) in enumerate(state_frames.items()):
         top = row * (cell_h + 26) + 8
-        sheet_draw.rectangle((0, top, cols * cell_w, top + 22), fill=(33, 69, 54))
-        sheet_draw.text((8, top + 4), name.upper(), fill=(238, 248, 232))
+        sheet_draw.rectangle((0, top, cols * cell_w, top + 22), fill=(30, 73, 110))
+        sheet_draw.text((8, top + 4), name.upper(), fill=(233, 247, 255))
         picks = np.linspace(0, len(frames) - 1, cols).round().astype(int)
         for col, idx in enumerate(picks):
             bg = checker.copy()
@@ -272,43 +269,42 @@ def make_preview(state_frames: dict[str, list[Image.Image]]) -> None:
 
 
 def main() -> None:
-    if not SOURCE_FILES["pose1"].exists() or not SOURCE_FILES["pose2"].exists():
-        raise SystemExit("design/laozhou_pose1.png and pose2.png are required")
+    if not SOURCE_FILE.exists():
+        raise SystemExit("design/feiyu.png is required")
 
-    raw_pose1 = Image.open(SOURCE_FILES["pose1"]).convert("RGBA")
-    pose1_clean = remove_background(raw_pose1)
+    raw_pose = Image.open(SOURCE_FILE).convert("RGBA")
+    clean_pose = remove_background(raw_pose)
 
-    scene1 = load_scene(SOURCE_FILES["pose1"])
-    scene2 = load_scene(SOURCE_FILES["pose2"])
-    key_sticker, key_base = split_hand(scene1, HAND_RIGHT_KEY)
-    mouse_sticker, mouse_base = split_hand(scene2, HAND_LEFT_MOUSE)
+    scene = load_scene(SOURCE_FILE)
+    key_sticker, key_base = split_hand(scene, HAND_RIGHT_KEY)
+    mouse_sticker, mouse_base = split_hand(scene, HAND_LEFT_MOUSE)
 
     specs = {
-        "idle": (scene1, [
+        "idle": (scene, [
             {"dy": -1}, {"dy": -2, "sy": 1.002}, {"dy": -3, "sy": 1.003},
             {"dy": -2, "sy": 1.002}, {"dy": -1}, {"dy": 0},
             {"dy": 1, "sy": 0.999}, {"dy": 0, "sy": 0.999},
         ]),
-        "drag": (scene2, [
-            {"dx": 0, "dy": -6, "angle": -3.2},
-            {"dx": 2, "dy": -8, "angle": -1.4},
-            {"dx": 0, "dy": -8, "angle": 1.4},
-            {"dx": -2, "dy": -6, "angle": 3.2},
+        "drag": (scene, [
+            {"dx": 0, "dy": -4, "angle": -2.4},
+            {"dx": 1, "dy": -5, "angle": -1.1},
+            {"dx": 0, "dy": -5, "angle": 1.1},
+            {"dx": -1, "dy": -4, "angle": 2.4},
         ]),
     }
 
-    for name, (scene, params) in specs.items():
-        build_state(name, scene, params)
+    for name, (state_scene, params) in specs.items():
+        build_state(name, state_scene, params)
 
-    # The keyboard stays byte-for-byte identical across these frames; only the
-    # cut-out hand is moved.  The mousepad is treated the same way.
+    # The keyboard and mousepad stay byte-for-byte identical across these
+    # frames; only the cut-out hand moves.
     build_hand_state("mouse", mouse_base, mouse_sticker, [
-        (0, 0), (24, -5), (40, 2), (24, 8),
-        (0, 1), (-24, -7), (-40, 0), (-24, 6),
+        (0, 0), (20, -4), (32, 1), (20, 6),
+        (0, 1), (-20, -6), (-32, 0), (-20, 5),
     ])
     build_hand_state("key", key_base, key_sticker, [
-        (0, 0), (-4, -16), (0, -34), (2, -44),
-        (0, 8), (0, 0), (-2, -10), (0, 0),
+        (0, 0), (-3, -14), (0, -30), (2, -40),
+        (0, 7), (0, 0), (-2, -9), (0, 0),
     ])
 
     counts = {name: len(params) for name, (_, params) in specs.items()}
@@ -321,12 +317,7 @@ def main() -> None:
             for i in range(count)
         ]
 
-    build_icon(pose1_clean)
-
-    sfx = ASSETS / "sfx" / "click5.wav"
-    if not sfx.exists():
-        raise SystemExit("assets/sfx/click5.wav is missing")
-
+    build_icon(clean_pose)
     make_preview(all_frames)
 
 

@@ -1,4 +1,4 @@
-"""The small cream speech bubble that pops above the pet."""
+"""The small sky-tinted speech bubble that pops above the pet."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ class Bubble(QWidget):
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
-        self._text = "325"
+        self._text = "deep"
         self._font = QFont(FONT_FAMILY)
         self._font.setPointSize(19)
         self._font.setBold(True)
@@ -64,7 +64,7 @@ class Bubble(QWidget):
         painter.save()
         painter.translate(0, 3)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(18, 35, 25, 34))
+        painter.setBrush(QColor(20, 40, 60, 34))
         painter.drawPath(path)
         painter.restore()
 
@@ -72,7 +72,7 @@ class Bubble(QWidget):
         painter.setBrush(QColor(CREAM))
         painter.drawPath(path)
 
-        # A tiny green accent dot keeps the bubble tied to the pet's colours.
+        # A tiny sky-blue accent dot ties the bubble to 肥鱼's colours.
         painter.setPen(Qt.NoPen)
         painter.setBrush(QColor(GREEN))
         painter.drawEllipse(QPoint(24, 23), 3.4, 3.4)

@@ -15,13 +15,13 @@ VSVersionInfo(
       StringTable(
         '080404b0',
         [
-          StringStruct('CompanyName', 'Laozhou'),
-          StringStruct('FileDescription', 'Laozhou Desktop Pet'),
+          StringStruct('CompanyName', 'Feiyu'),
+          StringStruct('FileDescription', 'Feiyu Desktop Pet'),
           StringStruct('FileVersion', '1.0.0.0'),
-          StringStruct('InternalName', 'LaozhouPet'),
-          StringStruct('LegalCopyright', 'Laozhou'),
-          StringStruct('OriginalFilename', 'LaozhouPet.exe'),
-          StringStruct('ProductName', 'Laozhou Desktop Pet'),
+          StringStruct('InternalName', 'FeiyuPet'),
+          StringStruct('LegalCopyright', 'Feiyu'),
+          StringStruct('OriginalFilename', 'FeiyuPet.exe'),
+          StringStruct('ProductName', 'Feiyu Desktop Pet'),
           StringStruct('ProductVersion', '1.0.0.0')
         ]
       )

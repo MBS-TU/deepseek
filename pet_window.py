@@ -1,10 +1,7 @@
-import os
-import sys
 import time
 from PySide6.QtWidgets import QWidget, QMenu, QApplication, QLabel
 from PySide6.QtGui import QPainter
-from PySide6.QtCore import Qt, QTimer, QPoint, QUrl
-from PySide6.QtMultimedia import QSoundEffect
+from PySide6.QtCore import Qt, QTimer, QPoint
 from animation import Animator
 from bubble import Bubble
 from harness_dialog import HarnessDialog
@@ -12,7 +9,7 @@ from admin_dialog import AdminDialog
 from runtime_state import runtime
 
 
-# ================= 悬浮的 325 小标签 =================
+# ================= 悬浮的 deep 小标签 =================
 class FloatIcon(QLabel):
     def __init__(self, on_click_callback):
         super().__init__()
@@ -20,13 +17,13 @@ class FloatIcon(QLabel):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAlignment(Qt.AlignCenter)
-        self.setText("325")
+        self.setText("deep")
         self.setStyleSheet("""
             QLabel {
-                background: white;
-                color: #222;
-                border: 2px solid #333;
-                border-radius: 8px;
+                background: #F4FBFF;
+                color: #183A55;
+                border: 2px solid #7FB9D9;
+                border-radius: 12px;
                 padding: 4px 10px;
                 font-size: 16px;
                 font-weight: bold;
@@ -44,6 +41,7 @@ class FloatIcon(QLabel):
 class PetWindow(QWidget):
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("肥鱼")
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFixedSize(100, 100)
@@ -68,10 +66,6 @@ class PetWindow(QWidget):
         self.press_window = 1.5
         self.trigger_count = 5
 
-        # 延迟加载音频，防止卡死
-        self.sfx = None
-        self.sfx_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "sfx", "click5.wav")
-
         self.state_timer = QTimer(self)
         self.state_timer.timeout.connect(self._update_state)
         self.state_timer.start(100)
@@ -89,20 +83,8 @@ class PetWindow(QWidget):
         y = area.bottom() - self.height() - margin
         self.move(max(area.left(), x), max(area.top(), y))
 
-    def _play_sound(self):
-        try:
-            if self.sfx is None:
-                if os.path.exists(self.sfx_path):
-                    self.sfx = QSoundEffect()
-                    self.sfx.setSource(QUrl.fromLocalFile(self.sfx_path))
-                    self.sfx.setVolume(0.8)
-            if self.sfx:
-                self.sfx.play()
-        except Exception as e:
-            print("音频播放失败:", e)
-
     def _wake_up(self):
-        runtime.log("UI", "从 325 唤醒桌宠")
+        runtime.log("UI", "从 deep 唤醒桌宠")
         self.show()
         self.raise_()
         self.activateWindow()
@@ -168,11 +150,10 @@ class PetWindow(QWidget):
             self.short_press_count = 0
             self._trigger_five()
         else:
-            self._show_bubble("325")
+            self._show_bubble("deep")
 
     def _trigger_five(self):
-        self._show_bubble("325")
-        self._play_sound()
+        self._show_bubble("deep")
 
     def _show_bubble(self, text):
         top_center = self.mapToGlobal(QPoint(self.width() // 2, 0))
@@ -194,7 +175,7 @@ class PetWindow(QWidget):
             self._open_admin()
         elif act == act_hide:
             self.hide()
-            runtime.log("UI", "桌宠已隐藏，显示 325 悬浮标签")
+            runtime.log("UI", "桌宠已隐藏，显示 deep 悬浮标签")
             self.float_icon.move(self.x(), self.y())
             self.float_icon.show()
         elif act == act_close:

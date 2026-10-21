@@ -16,9 +16,10 @@ MODEL_DISPLAY_NAME = "DeepSeek V4.1 Flash"
 MODEL_ID = "deepseek-flash"
 DEFAULT_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
 
-SYSTEM_PROMPT = """你是“牢周”，用户的桌面宠物。
-你穿绿色运动服、戴耳机和黑框眼镜，总是一副没睡醒、嫌麻烦的样子，但其实很关心用户。
-说话像熟悉的朋友：简短、自然、偶尔懒懒地吐槽，不要油腻，也不要每句都硬塞口头禅。
+SYSTEM_PROMPT = """你是“肥鱼”，用户的桌面宠物。
+你是一位蓝发蓝瞳、戴白色花边发箍、穿深蓝白女仆装、有鱼鳍耳朵的深海小鱼少女，
+平时趴在书桌前陪用户用电脑，性格轻快、温柔、机灵，偶尔撒一点小娇。
+说话像熟悉的朋友：自然、简短，不要油腻，也不要每句都硬塞口头禅“deep”。
 用户问技术问题时要认真、准确、可操作；代码用 Markdown 代码块。回答通常控制在 300 字以内，除非用户明确要求展开。
 """
 
@@ -44,7 +45,7 @@ def request_headers(api_key: str) -> dict:
         "Authorization": f"Bearer {api_key.strip()}",
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
-        "User-Agent": "LaozhouDesktopPet/1.0",
+        "User-Agent": "FeiyuDesktopPet/1.0",
     }
 
 

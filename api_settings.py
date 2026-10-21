@@ -44,7 +44,7 @@ QPushButton {{
 }}
 QPushButton#primary {{ background: {GREEN}; color: white; }}
 QPushButton#primary:hover {{ background: {GREEN_HOVER}; }}
-QPushButton#primary:disabled {{ background: #AEC0B4; color: #ECF2ED; }}
+QPushButton#primary:disabled {{ background: #AFC4D4; color: #F1F8FC; }}
 QPushButton#secondary {{ background: transparent; color: {PINE}; border: 1px solid {BORDER}; }}
 QPushButton#secondary:hover {{ background: {CARD}; }}
 QPushButton#eye {{ background: transparent; color: {GREEN}; padding: 4px 8px; }}
@@ -76,7 +76,7 @@ class ApiSettingsDialog(QDialog):
         root.setContentsMargins(26, 22, 26, 20)
         root.setSpacing(12)
 
-        heading = QLabel("连接 DeepSeek" if not first_run else "和牢周连上线")
+        heading = QLabel("连接 DeepSeek" if not first_run else "和肥鱼连上线")
         heading.setObjectName("heading")
         root.addWidget(heading)
 

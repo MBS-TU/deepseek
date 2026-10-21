@@ -35,7 +35,7 @@ QFrame#header {{
     border: none;
 }}
 QLabel#headerTitle {{ color: white; font-size: 18px; font-weight: 700; }}
-QLabel#headerSub {{ color: #CFE2D3; font-size: 10px; }}
+QLabel#headerSub {{ color: #D2ECFB; font-size: 10px; }}
 QPushButton#headerButton {{
     color: white;
     background: rgba(255,255,255,26);
@@ -50,7 +50,7 @@ QScrollArea {{ border: none; background: {PAPER}; }}
 QWidget#messageHost {{ background: {PAPER}; }}
 QFrame#assistantBubble {{
     background: {CARD};
-    border: 1px solid #E2DAC8;
+    border: 1px solid #D2E5F1;
     border-radius: 15px;
     border-bottom-left-radius: 5px;
 }}
@@ -67,7 +67,7 @@ QFrame#errorBubble {{
 }}
 QLabel#bubbleName {{ color: {MUTED}; font-size: 10px; }}
 QLabel#bubbleText {{ color: {INK}; font-size: 10.5pt; background: transparent; }}
-QFrame#userBubble QLabel#bubbleName {{ color: #CFE4D2; }}
+QFrame#userBubble QLabel#bubbleName {{ color: #D8EFFF; }}
 QFrame#userBubble QLabel#bubbleText {{ color: white; }}
 QFrame#errorBubble QLabel#bubbleText {{ color: #8E3E32; }}
 QFrame#composer {{
@@ -92,12 +92,12 @@ QPushButton#sendButton {{
     font-weight: 700;
 }}
 QPushButton#sendButton:hover {{ background: {GREEN_HOVER}; }}
-QPushButton#sendButton:disabled {{ background: #AFC2B4; color: #EEF3EF; }}
+QPushButton#sendButton:disabled {{ background: #AFC4D3; color: #F0F7FC; }}
 QLabel#statusLabel {{ font-size: 10.5px; color: {MUTED}; }}
-QLabel#footerHint {{ font-size: 10px; color: #929B90; }}
+QLabel#footerHint {{ font-size: 10px; color: #819AAE; }}
 QScrollBar:vertical {{ background: transparent; width: 9px; margin: 4px 2px; }}
-QScrollBar::handle:vertical {{ background: #C8C0AE; border-radius: 4px; min-height: 30px; }}
-QScrollBar::handle:vertical:hover {{ background: #AFA793; }}
+QScrollBar::handle:vertical {{ background: #B7D1E2; border-radius: 4px; min-height: 30px; }}
+QScrollBar::handle:vertical:hover {{ background: #9FBDD0; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
 """
@@ -121,7 +121,7 @@ class HarnessDialog(QDialog):
 
     def __init__(self, cfg: dict | None = None, pet=None):
         super().__init__(None)
-        self.setWindowTitle("牢周 · DeepSeek Harness")
+        self.setWindowTitle("肥鱼 · DeepSeek Harness")
         self.setWindowIcon(QIcon(str(asset_path("icon.ico"))))
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
         self.setMinimumSize(560, 600)
@@ -170,7 +170,7 @@ class HarnessDialog(QDialog):
 
         titles = QVBoxLayout()
         titles.setSpacing(0)
-        title = QLabel("牢周 · Harness")
+        title = QLabel("肥鱼 · Harness")
         title.setObjectName("headerTitle")
         subtitle = QLabel(f"独立对话窗 · {MODEL_DISPLAY_NAME}")
         subtitle.setObjectName("headerSub")
@@ -230,7 +230,7 @@ class HarnessDialog(QDialog):
         comp.setSpacing(8)
         self.input = ChatInput()
         self.input.setObjectName("chatInput")
-        self.input.setPlaceholderText("跟牢周说点什么…  Enter 发送 / Shift+Enter 换行")
+        self.input.setPlaceholderText("跟肥鱼说点什么…  Enter 发送 / Shift+Enter 换行")
         self.input.setFixedHeight(62)
         self.input.send_requested.connect(self._on_send_clicked)
         comp.addWidget(self.input, 1)
@@ -272,8 +272,8 @@ class HarnessDialog(QDialog):
     def _show_welcome(self) -> None:
         self._add_message(
             "assistant",
-            "我是牢周。今天想聊点什么？\n\n"
-            "右键我，可以把我藏成 325；右上角「后台」能改我的人设、"
+            "我是肥鱼。今天想聊点什么？\n\n"
+            "右键我，可以把我藏成 deep；右上角「后台」能改我的人设、"
             "看运行状态和思考过程。",
             welcome=True,
         )
@@ -327,7 +327,7 @@ class HarnessDialog(QDialog):
         b.setContentsMargins(13, 9, 13, 10)
         b.setSpacing(2)
 
-        name = "牢周" if role == "assistant" else "你"
+        name = "肥鱼" if role == "assistant" else "你"
         if error:
             name = "连接提示"
         name_label = QLabel(name)
@@ -427,7 +427,7 @@ class HarnessDialog(QDialog):
         self._start_typing(label)
 
         self._set_generating(True)
-        self._set_status("● 牢周正在思考…", GREEN)
+        self._set_status("● 肥鱼正在思考…", GREEN)
         runtime.begin_turn(text, self.cfg.get("model", MODEL_ID))
 
         persona = (self.cfg.get("persona") or "").strip() or SYSTEM_PROMPT
@@ -448,7 +448,7 @@ class HarnessDialog(QDialog):
         self._reasoning_content += text
         runtime.append_reasoning(text)
         if len(self._reasoning_content) == len(text):
-            self._set_status("● 牢周正在思考…", GREEN)
+            self._set_status("● 肥鱼正在思考…", GREEN)
         QTimer.singleShot(0, self._scroll_to_bottom)
 
     def _on_chunk(self, text: str) -> None:

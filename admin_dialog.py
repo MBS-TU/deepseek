@@ -31,9 +31,9 @@ QFrame#adminHeader {{
     border: none;
 }}
 QLabel#adminTitle {{ color: white; font-size: 20px; font-weight: 700; }}
-QLabel#adminSub {{ color: #CFE2D3; font-size: 10.5px; }}
+QLabel#adminSub {{ color: #D2ECFB; font-size: 10.5px; }}
 QLabel#adminBadge {{
-    color: #DCEAD8; background: rgba(255,255,255,24);
+    color: #E2F4FF; background: rgba(255,255,255,24);
     border: 1px solid rgba(255,255,255,55);
     border-radius: 9px; padding: 5px 9px; font-size: 10px;
 }}
@@ -69,7 +69,7 @@ QTabBar::tab {{
 QTabBar::tab:selected {{ color: {PINE}; border-bottom: 2px solid {GREEN}; }}
 QTabBar::tab:hover {{ color: {GREEN}; }}
 QPlainTextEdit, QTextEdit {{
-    background: #FFFDF8;
+    background: #F8FDFF;
     color: {INK};
     border: 1px solid {BORDER};
     border-radius: 10px;
@@ -79,14 +79,14 @@ QPlainTextEdit, QTextEdit {{
 }}
 QPlainTextEdit:focus, QTextEdit:focus {{ border: 1px solid {GREEN}; }}
 QPlainTextEdit#console {{
-    background: #1E2A23;
-    color: #D9E8D5;
-    border: 1px solid #344B3C;
+    background: #162A39;
+    color: #D9EDF8;
+    border: 1px solid #2E4B61;
     font-family: "Consolas", "Cascadia Mono", monospace;
     font-size: 11px;
 }}
 QComboBox {{
-    background: #FFFDF8;
+    background: #F8FDFF;
     color: {INK};
     border: 1px solid {BORDER};
     border-radius: 9px;
@@ -106,10 +106,10 @@ QPushButton {{
 QPushButton:hover {{ background: {LEAF}; }}
 QPushButton#primary {{ background: {GREEN}; color: white; border-color: {GREEN}; }}
 QPushButton#primary:hover {{ background: {GREEN_HOVER}; }}
-QPushButton:disabled {{ color: #AFB8B0; background: #F0EEE6; }}
+QPushButton:disabled {{ color: #9AAEBD; background: #EDF5FA; }}
 QLabel#pathLabel {{ color: {MUTED}; font-size: 9.5px; }}
 QScrollBar:vertical {{ background: transparent; width: 9px; margin: 4px 2px; }}
-QScrollBar::handle:vertical {{ background: #C8C0AE; border-radius: 4px; min-height: 26px; }}
+QScrollBar::handle:vertical {{ background: #B7D1E2; border-radius: 4px; min-height: 26px; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
 """
 
@@ -124,7 +124,7 @@ STATUS_NAMES = {
 class AdminDialog(QDialog):
     def __init__(self):
         super().__init__(None)
-        self.setWindowTitle("牢周 · 管理后台")
+        self.setWindowTitle("肥鱼 · 管理后台")
         self.setWindowIcon(QIcon(str(asset_path("icon.ico"))))
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
         self.setMinimumSize(700, 580)
@@ -206,7 +206,7 @@ class AdminDialog(QDialog):
         lay.setContentsMargins(18, 16, 18, 16)
         lay.setSpacing(9)
 
-        title = QLabel("牢周的人设")
+        title = QLabel("肥鱼的人设")
         title.setObjectName("sectionTitle")
         lay.addWidget(title)
 

@@ -6,9 +6,9 @@ import os
 import sys
 from pathlib import Path
 
-APP_NAME = "牢周桌宠"
-APP_INTERNAL_NAME = "Laozhou325"
-APP_ID = "Laozhou325.DesktopPet"
+APP_NAME = "肥鱼桌宠"
+APP_INTERNAL_NAME = "FeiyuDeep"
+APP_ID = "FeiyuDeep.DesktopPet"
 APP_VERSION = "1.0.0"
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -30,7 +30,8 @@ def asset_path(*parts: str) -> Path:
 
 
 def _config_dir_override() -> Path | None:
-    override = os.environ.get("LAOZHOU_CONFIG_DIR")
+    override = (os.environ.get("FEIYU_CONFIG_DIR")
+                or os.environ.get("LAOZHOU_CONFIG_DIR"))
     return Path(override).expanduser() if override else None
 
 
@@ -59,4 +60,15 @@ def config_path() -> Path:
 def log_path() -> Path:
     folder = config_dir() / "logs"
     folder.mkdir(parents=True, exist_ok=True)
-    return folder / "laozhou.log"
+    return folder / "feiyu.log"
+
+
+def legacy_config_paths() -> list[Path]:
+    """Previous-brand config locations, used only for a one-time local import."""
+    paths: list[Path] = []
+    if _config_dir_override():
+        return paths
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        paths.append(Path(appdata) / "Laozhou325" / "config.json")
+    return paths
