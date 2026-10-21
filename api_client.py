@@ -152,6 +152,7 @@ class ValidateThread(QThread):
 
 class ChatThread(QThread):
     chunk = Signal(str)
+    reasoning_chunk = Signal(str)
     completed = Signal(str)
     failed = Signal(str)
     cancelled = Signal()
@@ -181,8 +182,13 @@ class ChatThread(QThread):
                 "messages": self.messages,
                 "stream": True,
                 "temperature": 0.65,
-                "max_tokens": 1400,
+                "max_tokens": 3000,
             }
+            if "api.deepseek.com" in endpoint.lower():
+                # DeepSeek V4.1 Flash supports thinking mode.  Keeping it on
+                # lets the admin window show the returned reasoning_content.
+                payload["thinking"] = {"type": "enabled"}
+                payload["reasoning_effort"] = "high"
             timeout = httpx.Timeout(90.0, connect=15.0, read=90.0)
             with httpx.Client(timeout=timeout, follow_redirects=True) as client:
                 with client.stream(
@@ -204,11 +210,14 @@ class ChatThread(QThread):
                         # regular JSON completion too.
                         response.read()
                         try:
-                            data = response.json()
-                            text = data["choices"][0]["message"]["content"]
+                            message = response.json()["choices"][0]["message"]
+                            reasoning = message.get("reasoning_content") or ""
+                            text = message.get("content") or ""
                         except Exception:
                             self.failed.emit("API 返回了无法识别的数据格式。")
                             return
+                        if reasoning:
+                            self.reasoning_chunk.emit(str(reasoning))
                         if text:
                             full.append(str(text))
                             self.chunk.emit(str(text))
@@ -242,8 +251,17 @@ class ChatThread(QThread):
                         try:
                             delta = obj["choices"][0].get("delta", {})
                             content = delta.get("content", "")
+                            reasoning = (delta.get("reasoning_content")
+                                         or delta.get("reasoning") or "")
                         except (KeyError, IndexError, TypeError):
                             continue
+                        if isinstance(reasoning, list):
+                            reasoning = "".join(
+                                part.get("text", "") for part in reasoning
+                                if isinstance(part, dict)
+                            )
+                        if reasoning:
+                            self.reasoning_chunk.emit(str(reasoning))
                         if isinstance(content, list):
                             content = "".join(
                                 part.get("text", "") for part in content

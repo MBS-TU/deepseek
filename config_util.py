@@ -16,6 +16,7 @@ DEFAULT_CONFIG = {
     "api_key": "",
     "model": "deepseek-flash",
     "base_url": "https://api.deepseek.com/v1/chat/completions",
+    "persona": "",
     "pet_x": None,
     "pet_y": None,
     "volume": 0.8,
@@ -64,6 +65,7 @@ def load_config() -> dict:
     cfg["api_key"] = str(cfg.get("api_key", "")).strip()
     cfg["base_url"] = str(cfg.get("base_url", "")).strip() or DEFAULT_CONFIG["base_url"]
     cfg["model"] = str(cfg.get("model", "")).strip() or DEFAULT_CONFIG["model"]
+    cfg["persona"] = str(cfg.get("persona", "") or "")
 
     # Numeric sanity, in case a user edits the JSON by hand.
     cfg["volume"] = max(0.0, min(1.0, _as_float(cfg.get("volume"), 0.8)))

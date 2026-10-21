@@ -8,6 +8,8 @@ from PySide6.QtMultimedia import QSoundEffect
 from animation import Animator
 from bubble import Bubble
 from harness_dialog import HarnessDialog
+from admin_dialog import AdminDialog
+from runtime_state import runtime
 
 
 # ================= 悬浮的 325 小标签 =================
@@ -50,7 +52,9 @@ class PetWindow(QWidget):
         self.animator.changed.connect(self.update)
         self.bubble = Bubble()
         self.harness = None
+        self.admin = None
         self.float_icon = FloatIcon(self._wake_up)
+        runtime.log("APP", "桌宠启动")
 
         self.drag_offset = None
         self.press_time = 0.0
@@ -98,15 +102,18 @@ class PetWindow(QWidget):
             print("音频播放失败:", e)
 
     def _wake_up(self):
+        runtime.log("UI", "从 325 唤醒桌宠")
         self.show()
         self.raise_()
         self.activateWindow()
 
     def on_mouse_moved(self):
         self.last_mouse = time.time()
+        runtime.bump_mouse()
 
     def on_key_pressed(self):
         self.last_key = time.time()
+        runtime.bump_key()
 
     def _update_state(self):
         now = time.time()
@@ -174,6 +181,7 @@ class PetWindow(QWidget):
     def contextMenuEvent(self, e):
         menu = QMenu(self)
         act_harness = menu.addAction("Harness 对话")
+        act_admin = menu.addAction("管理后台")
         menu.addSeparator()
         act_hide = menu.addAction("隐藏")
         act_close = menu.addAction("关闭")
@@ -182,14 +190,25 @@ class PetWindow(QWidget):
 
         if act == act_harness:
             self._open_harness()
+        elif act == act_admin:
+            self._open_admin()
         elif act == act_hide:
             self.hide()
+            runtime.log("UI", "桌宠已隐藏，显示 325 悬浮标签")
             self.float_icon.move(self.x(), self.y())
             self.float_icon.show()
         elif act == act_close:
             if self.harness is not None:
                 self.harness.shutdown()
             QApplication.quit()
+
+    def _open_admin(self):
+        runtime.log("UI", "打开管理后台")
+        if self.admin is None:
+            self.admin = AdminDialog()
+        self.admin.show()
+        self.admin.raise_()
+        self.admin.activateWindow()
 
     def _open_harness(self):
         if self.harness is None:

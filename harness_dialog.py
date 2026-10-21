@@ -16,6 +16,7 @@ from api_client import ChatThread, MODEL_DISPLAY_NAME, MODEL_ID, SYSTEM_PROMPT
 from api_settings import ApiSettingsDialog
 from config_util import has_api_key, load_config
 from paths import asset_path
+from runtime_state import runtime
 from theme import (
     BORDER, CARD, DANGER, FONT_FAMILY, GREEN, GREEN_HOVER, INK,
     MUTED, PAPER, PINE,
@@ -136,6 +137,7 @@ class HarnessDialog(QDialog):
         self._assistant_label: QLabel | None = None
         self._assistant_container: QWidget | None = None
         self._assistant_content = ""
+        self._reasoning_content = ""
         self._typing_base = "正在思考"
         self._typing_step = 0
         self._typing_timer = QTimer(self)
@@ -176,6 +178,11 @@ class HarnessDialog(QDialog):
         titles.addWidget(subtitle)
         h.addLayout(titles)
         h.addStretch(1)
+
+        self.admin_btn = QPushButton("后台")
+        self.admin_btn.setObjectName("headerButton")
+        self.admin_btn.clicked.connect(self._open_admin)
+        h.addWidget(self.admin_btn)
 
         self.new_btn = QPushButton("新对话")
         self.new_btn.setObjectName("headerButton")
@@ -266,7 +273,8 @@ class HarnessDialog(QDialog):
         self._add_message(
             "assistant",
             "我是牢周。今天想聊点什么？\n\n"
-            "右键我，可以把我藏成 325；设置里能更换 API Key。",
+            "右键我，可以把我藏成 325；右上角「后台」能改我的人设、"
+            "看运行状态和思考过程。",
             welcome=True,
         )
 
@@ -395,6 +403,10 @@ class HarnessDialog(QDialog):
         text = self.input.toPlainText().strip()
         if not text:
             return
+
+        # Pick up persona/API changes saved from the admin window.
+        self.cfg = load_config()
+        self._refresh_status()
         if not has_api_key(self.cfg):
             self._add_message("assistant",
                               "还没有配置 DeepSeek API Key。点右上角“设置”连一下。",
@@ -411,20 +423,33 @@ class HarnessDialog(QDialog):
         self._assistant_container = container
         self._assistant_label = label
         self._assistant_content = ""
+        self._reasoning_content = ""
         self._start_typing(label)
 
         self._set_generating(True)
         self._set_status("● 牢周正在思考…", GREEN)
+        runtime.begin_turn(text, self.cfg.get("model", MODEL_ID))
 
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + self.history
+        persona = (self.cfg.get("persona") or "").strip() or SYSTEM_PROMPT
+        messages = [{"role": "system", "content": persona}] + self.history
         thread = ChatThread(dict(self.cfg), messages)
         self._thread = thread
         thread.chunk.connect(self._on_chunk)
+        thread.reasoning_chunk.connect(self._on_reasoning_chunk)
         thread.completed.connect(self._on_completed)
         thread.failed.connect(self._on_failed)
         thread.cancelled.connect(self._on_cancelled)
         thread.finished.connect(self._on_thread_finished)
         thread.start()
+
+    def _on_reasoning_chunk(self, text: str) -> None:
+        if not text:
+            return
+        self._reasoning_content += text
+        runtime.append_reasoning(text)
+        if len(self._reasoning_content) == len(text):
+            self._set_status("● 牢周正在思考…", GREEN)
+        QTimer.singleShot(0, self._scroll_to_bottom)
 
     def _on_chunk(self, text: str) -> None:
         if not text:
@@ -434,6 +459,7 @@ class HarnessDialog(QDialog):
             if self._assistant_label is not None:
                 self._assistant_label.setText("")
         self._assistant_content += text
+        runtime.mark_receiving(len(self._assistant_content))
         if self._assistant_label is not None:
             self._assistant_label.setText(self._assistant_content)
             self._assistant_label.adjustSize()
@@ -453,6 +479,7 @@ class HarnessDialog(QDialog):
             self._set_status(f"● 已连接 · {self.cfg.get('model', MODEL_ID)}", GREEN)
         else:
             self._show_error("DeepSeek 没有返回内容，再试一次吧。")
+        runtime.finish_turn(len(self._assistant_content))
         self._generating = False
         QTimer.singleShot(0, self._scroll_to_bottom)
 
@@ -464,6 +491,7 @@ class HarnessDialog(QDialog):
             self._assistant_label = None
         self._show_error(message)
         self._set_status("● 连接出错", DANGER)
+        runtime.fail_turn(message)
 
     def _on_cancelled(self) -> None:
         self._stop_typing()
@@ -478,6 +506,7 @@ class HarnessDialog(QDialog):
             self._assistant_container = None
             self._assistant_label = None
         self._set_status("● 已停止", MUTED)
+        runtime.cancel_turn()
 
     def _show_error(self, message: str) -> None:
         self._add_message("assistant", message, error=True)
@@ -531,9 +560,16 @@ class HarnessDialog(QDialog):
         if accepted:
             self.cfg = load_config()
             self._refresh_status()
+            runtime.log("API", "API 设置已更新")
             self.config_changed.emit(dict(self.cfg))
             if self.isVisible():
                 self.input.setFocus()
+
+    def _open_admin(self) -> None:
+        if self.pet is not None and hasattr(self.pet, "_open_admin"):
+            self.pet._open_admin()
+        else:
+            self._set_status("● 请从桌宠右键菜单打开管理后台", MUTED)
 
     def ensure_api_key(self) -> bool:
         """Compatibility entry point used by PetWindow._open_harness()."""
@@ -546,6 +582,7 @@ class HarnessDialog(QDialog):
             return False
         self.cfg = load_config()
         self._refresh_status()
+        runtime.log("API", "连接验证成功，API 已保存")
         self.config_changed.emit(dict(self.cfg))
         return True
 

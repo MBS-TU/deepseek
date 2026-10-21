@@ -14,15 +14,21 @@
 - **DeepSeek V4.1 Flash**：模型名 `deepseek-flash`，通过官方 OpenAI 兼容接口流式对话。
 - **首次 API 配置**：右键「Harness 对话」且没有 Key 时，先弹出 API 配置窗口；「连接并保存」会真实测试接口，成功后才保存并打开对话。
 - **独立 Harness 对话框**：不嵌在桌宠里；支持流式输出、Markdown、停止、新对话、修改 API 设置。
+- **本地管理后台**：右键桌宠选「管理后台」，或在 Harness 里点「后台」。
+  - 人设：直接编辑 system prompt，保存后下一轮对话生效。
+  - 后台：查看 API/模型/接口/输入活动、本次运行事件日志，修改 API 设置。
+  - 思考过程：实时查看 DeepSeek 返回的 `reasoning_content`，可以复制或清空记录。
 - **配置存储**：
   - 源码运行：项目根目录 `config.json`
   - 打包运行：`%APPDATA%\Laozhou325\config.json`
-  - API Key 为本地明文保存，不会上传到除 DeepSeek API 之外的地方。
+  - API Key 和自定义人设为本地明文保存，不会上传到除 DeepSeek API 之外的地方。
 
 ## 隐私
 
-- `config.json` 已加入 `.gitignore`，API Key 不会进入 Git 仓库。
+- `config.json` 已加入 `.gitignore`，API Key 和人设设置都不会进入 Git 仓库。
 - `.idea/`、`release/`、`build/`、`dist/` 和压缩包也不会提交（仅保留源码与运行素材）。
+- 管理后台不会显示 API Key 原文。
+- 思考过程只保存在当前进程内存中，不写入 config、日志文件或仓库。
 - 如果 API Key 曾出现在任何公开位置，请立即到 DeepSeek 平台撤销并重新生成。
 
 ## 目录
@@ -36,6 +42,8 @@ bubble.py               325 气泡
 harness_dialog.py       独立 DeepSeek 对话窗
 api_client.py           DeepSeek 流式请求、连接验证、错误提示
 api_settings.py         首次 API 配置/修改窗口
+admin_dialog.py         本地管理后台：人设、运行状态/日志、思考过程
+runtime_state.py        本次运行的后台事件与内存思考记录
 config_util.py          配置存取与旧配置迁移
 paths.py                源码/打包资源路径
 theme.py                配色与字体
