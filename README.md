@@ -22,7 +22,6 @@
 - **配置存储**：
   - 源码运行：项目根目录 `config.json`
   - 打包运行：`%APPDATA%\FeiyuDeep\config.json`
-  - 首次启动会尝试从旧版 `%APPDATA%\Laozhou325\config.json` 迁移本地配置，并保留已有的 API Key/人设。
   - API Key 和自定义人设为本地明文保存，不会上传到除 DeepSeek API 之外的地方。
 
 ## 隐私

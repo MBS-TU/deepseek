@@ -30,8 +30,7 @@ def asset_path(*parts: str) -> Path:
 
 
 def _config_dir_override() -> Path | None:
-    override = (os.environ.get("FEIYU_CONFIG_DIR")
-                or os.environ.get("LAOZHOU_CONFIG_DIR"))
+    override = os.environ.get("FEIYU_CONFIG_DIR")
     return Path(override).expanduser() if override else None
 
 
@@ -61,14 +60,3 @@ def log_path() -> Path:
     folder = config_dir() / "logs"
     folder.mkdir(parents=True, exist_ok=True)
     return folder / "feiyu.log"
-
-
-def legacy_config_paths() -> list[Path]:
-    """Previous-brand config locations, used only for a one-time local import."""
-    paths: list[Path] = []
-    if _config_dir_override():
-        return paths
-    appdata = os.environ.get("APPDATA")
-    if appdata:
-        paths.append(Path(appdata) / "Laozhou325" / "config.json")
-    return paths

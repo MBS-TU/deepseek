@@ -8,7 +8,7 @@ import logging
 import os
 from pathlib import Path
 
-from paths import config_path, legacy_config_paths
+from paths import config_path
 
 log = logging.getLogger(__name__)
 
@@ -53,19 +53,6 @@ def _atomic_save(path: Path, data: dict) -> None:
 
 def load_config() -> dict:
     path = config_path()
-    if not path.exists():
-        # Local-only one-time migration from the previous pet brand.  This keeps
-        # an already configured API key/persona when upgrading the packaged app.
-        for legacy in legacy_config_paths():
-            if legacy.exists():
-                raw_legacy = _read_json(legacy)
-                if raw_legacy:
-                    try:
-                        _atomic_save(path, raw_legacy)
-                        log.info("Imported previous local config")
-                    except Exception:
-                        log.exception("Could not import previous config")
-                    break
     raw = _read_json(path)
     cfg = copy.deepcopy(DEFAULT_CONFIG)
     cfg.update(raw)
